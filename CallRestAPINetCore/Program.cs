@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 using System.Security.Cryptography;
 using System.Text;
 using System.Security;
+using Microsoft.Extensions.DependencyInjection;
+using CallRestAPINetCore;
+using Microsoft.Extensions.Logging;
+using NLog.Extensions.Logging;
 
 namespace WebAPIClient
 {
@@ -16,10 +20,23 @@ namespace WebAPIClient
 
         static void Main(string[] args)
         {
+            
+
             Console.WriteLine("Pwned Password Hello World!" + Environment.NewLine);
+            string username = ReadUsername();
             string password = ReadPassword();
 
-            GetPwnedPassword(password).Wait();
+            GetPwnedPassword(username, password).Wait();
+
+            NLog.LogManager.Shutdown();
+        }
+
+        private static string ReadUsername()
+        {
+            Console.WriteLine("Please enter a username");
+
+            var password = Console.ReadLine();
+            return password;
         }
 
         private static string ReadPassword()
@@ -30,7 +47,7 @@ namespace WebAPIClient
             return password;
         }
 
-        private static async Task GetPwnedPassword(string password)
+        private static async Task GetPwnedPassword(string username, string password)
         {
             StringBuilder passwordHash = CreateHashFrom(password);
 
@@ -40,14 +57,17 @@ namespace WebAPIClient
 
             List<KeyValuePair<string, string>> BreachedPasswordList = BuildPwnedPasswordList(kAnonimityPwnedPwString);
 
-            SearchPwnedPasswordList(passwordHash, BreachedPasswordList);
+            SearchPwnedPasswordList(username, passwordHash, BreachedPasswordList);
 
             Console.ReadLine();
         }
 
-        private static void SearchPwnedPasswordList(StringBuilder passwordHash, List<KeyValuePair<string, string>> BreachedPasswordList)
+        private static void SearchPwnedPasswordList(string username, StringBuilder passwordHash, List<KeyValuePair<string, string>> BreachedPasswordList)
         {
             var breached = BreachedPasswordList.Find(x => x.Key.ToLower() == passwordHash.ToString().Remove(Constants.hashStartIndex, Constants.hashLength));
+
+            var servicesProvider = BuildDi();
+            var logger = servicesProvider.GetRequiredService<Logger>();
 
             //TODO: Add scenario - Happy path: What if account was not breached?
             if (breached.Key != null)
@@ -57,6 +77,8 @@ namespace WebAPIClient
                     $"This password was previously exposed in a data breach.\r\n" +
                     $"Should you use this password you could potentially also be at risk.\r\n" +
                     $"Please consider changing it to something unique and strong.");
+
+                logger.LogWarningMessage("Warning", $"Unsafe password detected. User, {username} notified.");
             }
         }
 
@@ -93,6 +115,28 @@ namespace WebAPIClient
                 sb.Append(hashbyte.ToString("x2"));
             }
             return sb;
+        }
+
+        private static IServiceProvider BuildDi()
+        {
+            var services = new ServiceCollection();
+
+            //Runner is the custom class
+            services.AddTransient<Logger>();
+
+            services.AddSingleton<ILoggerFactory, LoggerFactory>();
+            services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
+            services.AddLogging((builder) => builder.SetMinimumLevel(LogLevel.Trace));
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+
+            //configure NLog
+            loggerFactory.AddNLog(new NLogProviderOptions { CaptureMessageTemplates = true, CaptureMessageProperties = true });
+            NLog.LogManager.LoadConfiguration("nlog.config");
+
+            return serviceProvider;
         }
     }
 }
