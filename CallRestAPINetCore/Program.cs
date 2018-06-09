@@ -20,9 +20,7 @@ namespace WebAPIClient
 
         static void Main(string[] args)
         {
-            
-
-            Console.WriteLine("Pwned Password Hello World!" + Environment.NewLine);
+            Console.WriteLine("Pwned Password app!" + Environment.NewLine);
             string username = ReadUsername();
             string password = ReadPassword();
 
@@ -72,7 +70,6 @@ namespace WebAPIClient
             //TODO: Add scenario - Happy path: What if account was not breached?
             if (breached.Key != null)
             {
-                //TODO: Do we want to log this to a file?
                 Console.WriteLine($"\n\nWARNING!!!\r\n" +
                     $"This password was previously exposed in a data breach.\r\n" +
                     $"Should you use this password you could potentially also be at risk.\r\n" +
